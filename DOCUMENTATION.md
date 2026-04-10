@@ -106,4 +106,14 @@ El sistema ahora soporta **Firmas Digitales de No-Repudio**.
 
 ---
 
+## 8. Adaptadores de Datos Externos (Connectors)
+
+### A. Adaptador GitHub
+* **Tecnología:** MicroProfile REST Client (Reasteasy Reactive).
+* **Flujo:** Consumo de API REST v3 de GitHub.
+* **Mapeo:** Extracción de `login`, `bio`, y `public_repos`.
+* **Seguridad:** Los datos externos se cifran inmediatamente al recibirse, minimizando la exposición de datos personales en texto plano en la memoria.
+
+---
+
 *Documento generado el 09 de Abril de 2026 por el Ingeniero de Sistemas Jhon A. Garcia.*
