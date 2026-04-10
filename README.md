@@ -1,74 +1,53 @@
-# personal-vault
+# Personal Vault: Bóveda de Identidad Soberana
 
-This project uses Quarkus, the Supersonic Subatomic Java Framework.
+**Personal Vault** es una herramienta de línea de comandos (CLI) de alto rendimiento desarrollada con **Quarkus** y **Java 17**. Permite a los usuarios gestionar su identidad digital de forma descentralizada, segura y totalmente privada.
 
-If you want to learn more about Quarkus, please visit its website: <https://quarkus.io/>.
+A diferencia de las plataformas tradicionales, esta bóveda utiliza criptografía de grado militar para asegurar que tú seas el único dueño de tus datos profesionales y personales.
 
-## Running the application in dev mode
+---
 
-You can run your application in dev mode that enables live coding using:
+## Características Principales
 
-```shell script
+* **Identidad Soberana (DID):** Generación de identificadores únicos basados en el estándar `did:key` con llaves Ed25519.
+* **Cifrado Bancario:** Almacenamiento local protegido con **AES-256-GCM** y derivación de llaves mediante **PBKDF2**.
+* **Resiliencia Total (BIP-39):** Sistema de recuperación basado en frases semilla de **12 palabras mnemónicas**.
+* **Conectividad de Perfil:**
+    * **GitHub:** Sincronización automática de bio y repositorios vía API REST.
+    * **LinkedIn:** Ingesta manual de extractos profesionales.
+* **Sello Digital:** Capacidad de firmar mensajes para demostrar autoría e integridad de los datos.
+
+---
+
+## Instalación y Uso
+
+### Requisitos
+* **Java 17** o superior (recomendado GraalVM o OpenJDK).
+
+### Ejecución rápida (Beta)
+Si ya tienes el archivo `.jar` empaquetado, simplemente ejecuta:
+```powershell
+java -jar target/personal-vault-1.0.0-SNAPSHOT-runner.jar --view
+```
+
+### Iniciar en modo desarrollo (Live Coding)
 ./mvnw quarkus:dev
-```
 
-> **_NOTE:_**  Quarkus now ships with a Dev UI, which is available in dev mode only at <http://localhost:8080/q/dev/>.
+### Generar el binario portable (Uber-JAR)
+./mvnw package "-Dquarkus.package.type=uber-jar" -DskipTests
 
-## Packaging and running the application
+---
 
-The application can be packaged using:
+## Ciclo de Vida de la Información
+1. **Entrada:** Se reciben datos de fuentes externas (GitHub/LinkedIn).
+2. **Normalización:** Los datos se estructuran en facetas JSON.
+3. **Cifrado:** Se aplica AES-256-GCM usando una llave derivada de tu contraseña.
+4. **Firma:** Se genera un sello Ed25519 que garantiza que los datos no han sido alterados.
+5. **Persistencia:** Se guarda el archivo `.vault` en el disco local.
 
-```shell script
-./mvnw package
-```
+---
 
-It produces the `quarkus-run.jar` file in the `target/quarkus-app/` directory.
-Be aware that it’s not an _über-jar_ as the dependencies are copied into the `target/quarkus-app/lib/` directory.
-
-The application is now runnable using `java -jar target/quarkus-app/quarkus-run.jar`.
-
-If you want to build an _über-jar_, execute the following command:
-
-```shell script
-./mvnw package -Dquarkus.package.jar.type=uber-jar
-```
-
-The application, packaged as an _über-jar_, is now runnable using `java -jar target/*-runner.jar`.
-
-## Creating a native executable
-
-You can create a native executable using:
-
-```shell script
-./mvnw package -Dnative
-```
-
-Or, if you don't have GraalVM installed, you can run the native executable build in a container using:
-
-```shell script
-./mvnw package -Dnative -Dquarkus.native.container-build=true
-```
-
-You can then execute your native executable with: `./target/personal-vault-1.0.0-SNAPSHOT-runner`
-
-If you want to learn more about building native executables, please consult <https://quarkus.io/guides/maven-tooling>.
-
-## Related Guides
-
-- Picocli ([guide](https://quarkus.io/guides/picocli)): Develop command line applications with Picocli
-
-## Provided Code
-
-### Picocli Example
-
-Hello and goodbye are civilization fundamentals. Let's not forget it with this example picocli application by changing the <code>command</code> and <code>parameters</code>.
-
-[Related guide section...](https://quarkus.io/guides/picocli#command-line-application-with-multiple-commands)
-
-Also for picocli applications the dev mode is supported. When running dev mode, the picocli application is executed and on press of the Enter key, is restarted.
-
-As picocli applications will often require arguments to be passed on the commandline, this is also possible in dev mode via:
-
-```shell script
-./mvnw quarkus:dev -Dquarkus.args='Quarky'
-```
+## Estructura de Facetas
+La identidad se organiza en módulos independientes:
+* **Core:** DID, Claves Públicas y Mnemónico.
+* **Professional:** Repositorios, Bio de GitHub y resúmenes de LinkedIn.
+* **Security:** Metadatos de cifrado y algoritmos utilizados.
