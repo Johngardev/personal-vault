@@ -51,3 +51,5 @@ La identidad se organiza en módulos independientes:
 * **Core:** DID, Claves Públicas y Mnemónico.
 * **Professional:** Repositorios, Bio de GitHub y resúmenes de LinkedIn.
 * **Security:** Metadatos de cifrado y algoritmos utilizados.
+
+---
