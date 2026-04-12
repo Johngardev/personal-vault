@@ -30,6 +30,12 @@ public class VaultCommand implements Runnable {
   @CommandLine.Option(names = {"--view"}, description = "Visualizar el Tablero de Identidad")
   boolean viewMode;
 
+  @CommandLine.Option(names = {"--export-claim"}, description = "Exporta una prueba firma de tu identidad")
+  boolean exportClaim;
+
+  @CommandLine.Option(names = {"--verify-claim"}, description = "Verifica la autenticidad de una credencial externa")
+  java.io.File claimFile;
+
   @Override
   public void run() {
     // 1. Captura de contraseña (UX de consola)
@@ -64,19 +70,19 @@ public class VaultCommand implements Runnable {
         VaultData data = new VaultData();
         data.attributes.put("recovery_phrase", mnemonic);
 
-        // A. Generar llaves Ed25519 (Asimétricas)
+        // Generar llaves Ed25519 (Asimétricas)
         java.security.KeyPair identityPair = security.generateIdentityKeyPair();
 
         data.ownerName = "Fundador Soberano";
 
-        // Codificamos las llaves en Base64 para el JSON
+        // Codificar las llaves en Base64 para el JSON
         data.encodedPublicKey = java.util.Base64.getEncoder().encodeToString(identityPair.getPublic().getEncoded());
         data.encodedPrivateKey = java.util.Base64.getEncoder().encodeToString(identityPair.getPrivate().getEncoded());
 
-        // Generamos un DID preliminar basado en la llave pública
+        // Generar un DID preliminar basado en la llave pública
         data.did = "did:key:z6M" + data.encodedPublicKey.substring(0, 15);
 
-        // C. Proceso de cifrado simétrico (Caja fuerte)
+        // Proceso de cifrado simétrico (Caja fuerte)
         byte[] salt = security.generateSalt();
         var secretKey = security.deriveKeyFromPassword(password, salt);
 
@@ -199,6 +205,63 @@ public class VaultCommand implements Runnable {
           System.out.println("=".repeat(60));
           System.out.println("      * Los datos mostrados solo existen en memoria RAM *");
           System.out.println("=".repeat(60) + "\n");
+        }
+
+        if (exportClaim) {
+          System.out.println("[EXPORT] Generando Crendencial Verificable...");
+
+          String claim = String.format("IDENTIDAD: %s | GITHUB: %s",
+                  restored.ownerName,
+                  restored.professionalProfile.getOrDefault("github_user", "N/A"));
+
+          java.security.PrivateKey privKey = security.decodePrivateKey(restored.encodedPrivateKey);
+
+          String signatureExport = security.sign(claim, privKey);
+
+          java.util.Map<String, String> jsonMap = new java.util.HashMap<>();
+          jsonMap.put("data", claim);
+          jsonMap.put("signature", signatureExport);
+          jsonMap.put("did", restored.did);
+          jsonMap.put("publicKey", restored.encodedPublicKey);
+
+          String finalJson = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(jsonMap);
+
+          java.nio.file.Files.writeString(java.nio.file.Path.of("identidad_soberana.json"), finalJson);
+          System.out.println("[SUCCESS] Credencial exportada a 'identidad_soberana.json'. ¡Puedes enviarla para ser verificada!");
+
+        }
+
+        if (claimFile != null) {
+          System.out.println("[ORACLE] Analizando credencial externa: " + claimFile.getName());
+
+          try {
+            // 1. Leer el JSON externo
+            var externalClaim = objectMapper.readTree(claimFile);
+            String externalData = externalClaim.get("data").asText();
+            String externalSig = externalClaim.get("signature").asText();
+            String externalPubK = externalClaim.get("publicKey").asText();
+
+            // 2. Convertir la llave pública de String a objeto PublicKey
+            java.security.PublicKey pubKey = security.decodePublicKey(externalPubK);
+
+            // 3. Verificar la autenticidad matemática
+            boolean isClaimValid = security.verify(externalData, externalSig, pubKey);
+
+            System.out.println("\n" + "=".repeat(42));
+            if (isClaimValid) {
+              System.out.println("***VERIFICACIÓN EXITOSA***");
+              System.out.println("Sello digital: AUTÉNTICO");
+              System.out.println("Los datos no han sido alterados.");
+              System.out.println("Contenido: " + externalData);
+            } else {
+              System.out.println("¡ALERTA!: CREDENCIAL INVÁLIDA");
+              System.out.println("-- El sello no coincide o el contenido fue manipulado. --");
+            }
+            System.out.println("=".repeat(42) + "\n");
+
+          } catch (Exception e) {
+            System.err.println("[ERROR] No se pudo procesar la credencial: " + e.getMessage());
+          }
         }
 
       }

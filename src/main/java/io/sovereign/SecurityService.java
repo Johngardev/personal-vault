@@ -6,6 +6,7 @@ import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.security.*;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
@@ -152,5 +153,48 @@ public class SecurityService {
     return random.ints(12, 0, wordList.length)
             .mapToObj(i -> wordList[i])
             .collect(Collectors.joining(" "));
+  }
+
+  /*
+  * Firma un mensaje usando la llave privada Ed25519 del usuario
+  * */
+  public String sign (String message, java.security.PrivateKey privateKey) {
+    try {
+      Signature s = Signature.getInstance("Ed25519");
+      s.initSign(privateKey);
+      s.update(message.getBytes(StandardCharsets.UTF_8));
+      byte[] signature = s.sign();
+      return Base64.getEncoder().encodeToString(signature);
+    } catch (Exception e) {
+      throw new RuntimeException("Error al generar sello digital", e);
+    }
+  }
+
+  /**
+   * Verifica si una firma es válida para un mensaje y una llave pública dados.
+   */
+  public boolean verify(String message, String signatureBase64, java.security.PublicKey publicKey) {
+    try {
+      Signature s = Signature.getInstance("Ed25519");
+      s.initVerify(publicKey);
+      s.update(message.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+      byte[] signature = Base64.getDecoder().decode(signatureBase64);
+      return s.verify(signature);
+    } catch (Exception e) {
+      // Si hay un error en el formato de la firma, asumimos que no es válida
+      return false;
+    }
+  }
+
+  public java.security.PrivateKey decodePrivateKey(String base64Key) throws Exception {
+    byte[] keyBytes = java.util.Base64.getDecoder().decode(base64Key);
+    return java.security.KeyFactory.getInstance("Ed25519")
+            .generatePrivate(new java.security.spec.PKCS8EncodedKeySpec(keyBytes));
+  }
+
+  public java.security.PublicKey decodePublicKey(String base64Key) throws Exception {
+    byte[] keyBytes = java.util.Base64.getDecoder().decode(base64Key);
+    return java.security.KeyFactory.getInstance("Ed25519")
+            .generatePublic(new java.security.spec.X509EncodedKeySpec(keyBytes));
   }
 }
