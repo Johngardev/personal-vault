@@ -36,11 +36,17 @@ public class VaultCommand implements Runnable {
   @CommandLine.Option(names = {"--verify-claim"}, description = "Verifica la autenticidad de una credencial externa")
   java.io.File claimFile;
 
+  @CommandLine.Option(names = {"--add-secret"}, arity = "2", description = "Guarda un secreto (Ej: --add-secret 'Bank' '1234')")
+  String[] newSecret;
+
+  @CommandLine.Option(names = {"--list-secrets"}, description = "Muestra todos los secretos guardados")
+  boolean listSecrets;
+
   @Override
   public void run() {
-    // 1. Captura de contraseña (UX de consola)
+    //Captura de contraseña
     if (this.password == null || this.password.length == 0) {
-      System.out.print("Introduzca la clave maestra para su Bóveda: ");
+      System.out.println("Introduzca la clave maestra de su Bóveda: ");
       java.util.Scanner sc = new java.util.Scanner(System.in);
       String input = sc.nextLine();
       this.password = input.toCharArray();
@@ -48,230 +54,174 @@ public class VaultCommand implements Runnable {
 
     SecurityService security = new SecurityService();
     var objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
-    java.nio.file.Path vaultPath = java.nio.file.Paths.get("identity.vault");
+    java.nio.file.Path vaultPath = java.nio.file.Paths.get("identity.vaul");
 
     try {
+      VaultData vault;
+
       if (!java.nio.file.Files.exists(vaultPath)) {
-        // --- MODO CREACIÓN (Nacimiento de la Identidad) ---
-        System.out.println("[NEW] No se encontró bóveda. Generando Identidad Soberana...");
-
-        System.out.println("[NEW] Generando Identidad Soberana...");
-
-        // GENERAR SEMILLA DE RECUPERACIÓN
+        // --- MODO CREACION ---
+        System.out.println("[NEW] No se encontro bóveda. Iniciando proceso de identidad...");
+        vault = new VaultData();
         String mnemonic = security.generateMnemonic();
 
         System.out.println("\n" + "!".repeat(60));
         System.out.println("IMPORTANTE: GUARDA ESTAS 12 PALABRAS EN UN LUGAR SEGURO.");
-        System.out.println("Si pierdes tu contraseña, esta es la ÚNICA forma de recuperar tu ID.");
-        System.out.println("\n>> " + mnemonic + " <<");
+        System.out.println("\n>> " + mnemonic + " <<\n");
         System.out.println("!".repeat(60) + "\n");
 
-        // Guardamos el mnemonic dentro del VaultData (Cifrado!)
-        VaultData data = new VaultData();
-        data.attributes.put("recovery_phrase", mnemonic);
+        vault.attributes.put("recovery_phrase", mnemonic);
+        vault.ownerName = "Fundador y Propietario soberano.";
 
-        // Generar llaves Ed25519 (Asimétricas)
-        java.security.KeyPair identityPair = security.generateIdentityKeyPair();
+        //Generacion de Criptografia Asimetrica
+        java.security.KeyPair pair = security.generateIdentityKeyPair();
+        vault.encodedPublicKey = java.util.Base64.getEncoder().encodeToString(pair.getPublic().getEncoded());
+        vault.encodedPrivateKey = java.util.Base64.getEncoder().encodeToString(pair.getPrivate().getEncoded());
+        vault.did = "did:key:z6M" + vault.encodedPublicKey.substring(0, 15);
 
-        data.ownerName = "Fundador Soberano";
-
-        // Codificar las llaves en Base64 para el JSON
-        data.encodedPublicKey = java.util.Base64.getEncoder().encodeToString(identityPair.getPublic().getEncoded());
-        data.encodedPrivateKey = java.util.Base64.getEncoder().encodeToString(identityPair.getPrivate().getEncoded());
-
-        // Generar un DID preliminar basado en la llave pública
-        data.did = "did:key:z6M" + data.encodedPublicKey.substring(0, 15);
-
-        // Proceso de cifrado simétrico (Caja fuerte)
-        byte[] salt = security.generateSalt();
-        var secretKey = security.deriveKeyFromPassword(password, salt);
-
-        byte[] jsonBytes = objectMapper.writeValueAsBytes(data);
-        byte[] encryptedPackage = security.encrypt(jsonBytes, secretKey, salt);
-
-        java.nio.file.Files.write(vaultPath, encryptedPackage);
-
-        System.out.println("[SUCCESS] Bóveda creada con Identidad Ed25519.");
-        System.out.println("[ID] Tu DID es: " + data.did);
+        // Persistencia inicial
+        saveVault(vault, security, password, vaultPath, objectMapper);
+        System.out.println("[SUCCESS] Bóveda creada. DID: " + vault.did);
 
       } else {
-        // --- MODO APERTURA (Recuperación) ---
-        System.out.println("[LOAD] Bóveda detectada. Desbloqueando llaves...");
-
+        // --- MODO APERTURA ---
         byte[] encryptedFile = java.nio.file.Files.readAllBytes(vaultPath);
         byte[] decrypted = security.decrypt(encryptedFile, password);
-        VaultData restored = objectMapper.readValue(decrypted, VaultData.class);
+        vault = objectMapper.readValue(decrypted, VaultData.class);
+        System.out.println("[LOAD] Bienvenido, " + vault.ownerName);
+      }
 
-        System.out.println("[SUCCESS] Bienvenido de nuevo, " + restored.ownerName);
-        System.out.println("[DATA] DID: " + restored.did);
+      boolean needsSave = false;
 
-        // --- NUEVA LÓGICA DE IMPORTACIÓN ---
-        if (githubUser != null && !githubUser.isEmpty()) {
-          System.out.println("[FETCH] Consultando datos de GitHub para: " + githubUser + "...");
-          try {
-            // Llamada a la API externa
-            Map<String, Object> githubData = gitHubClient.getUserData(githubUser);
+      // GitHub
+      if (githubUser != null && !githubUser.isEmpty()) {
+        System.out.println("[FETCH] Sincronizando GitHub...");
+        var githubData = gitHubClient.getUserData(githubUser);
+        vault.professionalProfile.put("github_user", githubData.get("login"));
+        vault.professionalProfile.put("bio", githubData.get("bio"));
+        vault.professionalProfile.put("last_sync", java.time.LocalDateTime.now().toString());
+        needsSave = true;
+      }
 
-            // Mapeamos los datos al perfil profesional de la bóveda
-            restored.professionalProfile.put("github_user", githubData.get("login"));
-            restored.professionalProfile.put("bio", githubData.get("bio"));
-            restored.professionalProfile.put("public_repos", githubData.get("public_repos"));
-            restored.professionalProfile.put("location", githubData.get("location"));
-            restored.professionalProfile.put("last_sync", java.time.LocalDateTime.now().toString());
+      // LinkedIn
+      if (linkedinText != null && !linkedinText.isEmpty()) {
+        vault.professionalProfile.put("linkedin_summary", linkedinText);
+        System.out.println("[IMPORT] LinkedIn integrado.");
+        needsSave = true;
+      }
 
-            System.out.println("[UPDATED] Datos de GitHub integrados localmente.");
+      // Notas Blindadas (Fase 5)
+      if (newSecret != null && newSecret.length == 2) {
+        vault.secrets.put(newSecret[0], newSecret[1]);
+        System.out.println("[SECURE] Secreto '" + newSecret[0] + "' guardado.");
+        needsSave = true;
+      }
 
-            // Volvemos a guardar la bóveda actualizada (importante!)
-            byte[] salt = security.extractSalt(encryptedFile); // Necesitamos un método para extraer el salt viejo
-            var secretKey = security.deriveKeyFromPassword(password, salt);
-            byte[] updatedEncrypted = security.encrypt(objectMapper.writeValueAsBytes(restored), secretKey, salt);
+      // Persistencia si hubo cambios
+      if (needsSave) {
+        saveVault(vault, security, password, vaultPath, objectMapper);
+      }
 
-            java.nio.file.Files.write(vaultPath, updatedEncrypted);
-            System.out.println("[FILE] Bóveda sincronizada y cerrada.");
+      // --- CONSULTAS Y ACCIONES (No modifican la bóveda) ---
 
-          } catch (Exception e) {
-            System.err.println("[ERROR] No se pudieron obtener datos de GitHub: " + e.getMessage());
-          }
-        }
+      if (listSecrets) {
+        System.out.println("\n--- 🗝️ ZONA BLINDADA ---");
+        if (vault.secrets.isEmpty()) System.out.println("Bóveda vacía.");
+        else vault.secrets.forEach((k, v) -> System.out.printf("[%s]: %s\n", k, v));
+      }
 
-        if (linkedinText != null && !linkedinText.isEmpty()) {
-          System.out.println("[IMPORT] Procesando perfil profesional de LinkedIn...");
+      if (viewMode) {
+        renderDashboard(vault); // Podrías mover el dashboard a su propio método
+      }
 
-          // Normalizamos el dato
-          restored.professionalProfile.put("linkedin_summary", linkedinText);
-          restored.professionalProfile.put("professional_status", "Verificado por Usuario");
+      if (exportClaim) {
+        exportVerifiableCredential(vault, security, objectMapper);
+      }
 
-          // Volvemos a sellar la bóveda
-          byte[] salt = security.extractSalt(encryptedFile);
-          var secretKey = security.deriveKeyFromPassword(password, salt);
-          byte[] updatedEncrypted = security.encrypt(objectMapper.writeValueAsBytes(restored), secretKey, salt);
-
-          java.nio.file.Files.write(vaultPath, updatedEncrypted);
-          System.out.println("[SUCCESS] LinkedIn integrado en tu identidad soberana.");
-        }
-
-        // --- NUEVO: PRUEBA DE FIRMA DIGITAL ---
-        System.out.println("\n[SIGN] Probando Sello Digital...");
-        String message = "Yo, " + restored.ownerName + ", autorizo el acceso a mis datos.";
-
-        // Generamos la firma con la llave privada que acabamos de descifrar
-        String signature = security.signMessage(message, restored.encodedPrivateKey);
-        System.out.println("[+] Mensaje: " + message);
-        System.out.println("[+] Firma (Base64): " + signature);
-
-        // Verificamos con la pública (lo que haría un tercero)
-        boolean isValid = security.verifySignature(message, signature, restored.encodedPublicKey);
-
-        if (isValid) {
-          System.out.println("[VERIFIED] ¡Firma auténtica! La identidad es soberana e íntegra.");
-        } else {
-          System.err.println("[FAILED] La firma no pudo ser verificada.");
-        }
-
-        if (viewMode) {
-          System.out.println("\n" + "=".repeat(60));
-          System.out.println("         📊 TABLERO DE IDENTIDAD SOBERANA (BETA v1.0)");
-          System.out.println("=".repeat(60));
-
-          // Sección 1: Identidad Core
-          System.out.printf("%-20s : %s\n", "PROPIETARIO", restored.ownerName.toUpperCase());
-          System.out.printf("%-20s : %s\n", "DID (ID Digital)", restored.did);
-          System.out.println("-".repeat(60));
-
-          // Sección 2: Faceta Profesional (GitHub)
-          if (restored.professionalProfile != null && !restored.professionalProfile.isEmpty()) {
-            System.out.println("  [FACETA PROFESIONAL - GITHUB]");
-            System.out.printf("  > Usuario    : %s\n", restored.professionalProfile.getOrDefault("github_user", "N/A"));
-            System.out.printf("  > Repos      : %s\n", restored.professionalProfile.getOrDefault("repos_count", "0"));
-            System.out.printf("  > Bio        : %s\n", restored.professionalProfile.getOrDefault("bio", "Sin descripción"));
-            System.out.printf("  > Sincro     : %s\n", restored.professionalProfile.getOrDefault("last_sync", "N/A"));
-          } else {
-            System.out.println("  [!] No hay datos profesionales vinculados.");
-          }
-          System.out.println("-".repeat(60));
-
-          if (restored.professionalProfile.containsKey("linkedin_summary")) {
-            System.out.println("  [FACETA PROFESIONAL - LINKEDIN]");
-            String summary = (String) restored.professionalProfile.get("linkedin_summary");
-            // Cortamos el texto si es muy largo para que no rompa el diseño
-            System.out.printf("  > Extracto    : %s...\n", summary.substring(0, Math.min(summary.length(), 50)));
-          }
-
-          // Sección 3: Seguridad RAM
-          System.out.println("  [ESTADO DE SEGURIDAD]");
-          System.out.println("  [✔] Llave Ed25519: ACTIVA Y CARGADA");
-          System.out.println("  [✔] Cifrado      : AES-256-GCM (Hardware Accelerated)");
-
-          System.out.println("=".repeat(60));
-          System.out.println("      * Los datos mostrados solo existen en memoria RAM *");
-          System.out.println("=".repeat(60) + "\n");
-        }
-
-        if (exportClaim) {
-          System.out.println("[EXPORT] Generando Crendencial Verificable...");
-
-          String claim = String.format("IDENTIDAD: %s | GITHUB: %s",
-                  restored.ownerName,
-                  restored.professionalProfile.getOrDefault("github_user", "N/A"));
-
-          java.security.PrivateKey privKey = security.decodePrivateKey(restored.encodedPrivateKey);
-
-          String signatureExport = security.sign(claim, privKey);
-
-          java.util.Map<String, String> jsonMap = new java.util.HashMap<>();
-          jsonMap.put("data", claim);
-          jsonMap.put("signature", signatureExport);
-          jsonMap.put("did", restored.did);
-          jsonMap.put("publicKey", restored.encodedPublicKey);
-
-          String finalJson = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(jsonMap);
-
-          java.nio.file.Files.writeString(java.nio.file.Path.of("identidad_soberana.json"), finalJson);
-          System.out.println("[SUCCESS] Credencial exportada a 'identidad_soberana.json'. ¡Puedes enviarla para ser verificada!");
-
-        }
-
-        if (claimFile != null) {
-          System.out.println("[ORACLE] Analizando credencial externa: " + claimFile.getName());
-
-          try {
-            // 1. Leer el JSON externo
-            var externalClaim = objectMapper.readTree(claimFile);
-            String externalData = externalClaim.get("data").asText();
-            String externalSig = externalClaim.get("signature").asText();
-            String externalPubK = externalClaim.get("publicKey").asText();
-
-            // 2. Convertir la llave pública de String a objeto PublicKey
-            java.security.PublicKey pubKey = security.decodePublicKey(externalPubK);
-
-            // 3. Verificar la autenticidad matemática
-            boolean isClaimValid = security.verify(externalData, externalSig, pubKey);
-
-            System.out.println("\n" + "=".repeat(42));
-            if (isClaimValid) {
-              System.out.println("***VERIFICACIÓN EXITOSA***");
-              System.out.println("Sello digital: AUTÉNTICO");
-              System.out.println("Los datos no han sido alterados.");
-              System.out.println("Contenido: " + externalData);
-            } else {
-              System.out.println("¡ALERTA!: CREDENCIAL INVÁLIDA");
-              System.out.println("-- El sello no coincide o el contenido fue manipulado. --");
-            }
-            System.out.println("=".repeat(42) + "\n");
-
-          } catch (Exception e) {
-            System.err.println("[ERROR] No se pudo procesar la credencial: " + e.getMessage());
-          }
-        }
-
+      if (claimFile != null) {
+        verifyExternalClaim(claimFile, security, objectMapper);
       }
     } catch (javax.crypto.AEADBadTagException e) {
-      System.err.println("[ERROR] Contraseña incorrecta. El acceso a las llaves de identidad fue denegado.");
+      System.err.println("[ERROR] Contraseña incorrecta. Acceso denegado!");
     } catch (Exception e) {
-      System.err.println("[ERROR] Error en el flujo soberano: " + e.getMessage());
-      e.printStackTrace();
+      System.err.println("[ERROR] Fallo en el sistema: " + e.getMessage() );
     } finally {
       if (password != null) java.util.Arrays.fill(password, ' ');
     }
+  }
+
+  //Oráculo
+  private void verifyExternalClaim(java.io.File file, SecurityService security, com.fasterxml.jackson.databind.ObjectMapper mapper) {
+    System.out.println("[ORACLE] Analizando credencial externa: " + file.getName());
+    try {
+      var externalClaim = mapper.readTree(file);
+      String data = externalClaim.get("data").asText();
+      String signature = externalClaim.get("signature").asText();
+      String pubK = externalClaim.get("publicKey").asText();
+
+      boolean isValid = security.verify(data, signature, security.decodePublicKey(pubK));
+
+      System.out.println("\n" + "=".repeat(45));
+      if (isValid) {
+        System.out.println("VERIFICACIÓN EXITOSA | Sello: AUTÉNTICO");
+        System.out.println("Contenido: " + data);
+      } else {
+        System.out.println("ALERTA: CREDENCIAL INVÁLIDA O MANIPULADA");
+      }
+      System.out.println("=".repeat(45) + "\n");
+    } catch (Exception e) {
+      System.err.println("[ERROR] Fallo al verificar credencial: " + e.getMessage());
+    }
+  }
+
+  //Emisor
+  private void exportVerifiableCredential(VaultData vault, SecurityService security, com.fasterxml.jackson.databind.ObjectMapper mapper) {
+    try {
+      System.out.println("[EXPORT] Firmando credencial de identidad...");
+      String claim = String.format("IDENTIDAD: %s | GITHUB: %s",
+              vault.ownerName, vault.professionalProfile.getOrDefault("github_user", "N/A"));
+
+      String sig = security.sign(claim, security.decodePrivateKey(vault.encodedPrivateKey));
+
+      java.util.Map<String, String> credential = new java.util.HashMap<>();
+      credential.put("data", claim);
+      credential.put("signature", sig);
+      credential.put("publicKey", vault.encodedPublicKey);
+      credential.put("did", vault.did);
+
+      String json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(credential);
+      java.nio.file.Files.writeString(java.nio.file.Path.of("identidad_soberana.json"), json);
+      System.out.println("[SUCCESS] Archivo 'identidad_soberana.json' generado.");
+    } catch (Exception e) {
+      System.err.println("[ERROR] No se pudo exportar: " + e.getMessage());
+    }
+  }
+
+  // Método saveVault centralizado
+  private void saveVault(VaultData data, SecurityService security, char[] password,
+                         java.nio.file.Path path, com.fasterxml.jackson.databind.ObjectMapper mapper) throws Exception {
+    byte[] salt = security.generateSalt();
+    var secretKey = security.deriveKeyFromPassword(password, salt);
+    byte[] encrypted = security.encrypt(mapper.writeValueAsBytes(data), secretKey, salt);
+    java.nio.file.Files.write(path, encrypted);
+  }
+
+  //Tablero
+  private void renderDashboard(VaultData vault) {
+    System.out.println("\n" + "█".repeat(60));
+    System.out.println("  Sovereign Vault Dashboard v1.0");
+    System.out.println("█".repeat(60));
+    System.out.printf("  HOLDER : %s\n", vault.ownerName.toUpperCase());
+    System.out.printf("  DID    : %s\n", vault.did);
+    System.out.println("─".repeat(60));
+
+    System.out.println("  [PROFESSIONAL FACETS]");
+    vault.professionalProfile.forEach((k, v) -> System.out.printf("  > %-12s: %s\n", k.toUpperCase(), v));
+
+    System.out.println("─".repeat(60));
+    System.out.println("  [SECURITY STATUS]");
+    System.out.printf("  > Secrets stored: %d\n", vault.secrets.size());
+    System.out.println("  > Ed25519 Keys  : ACTIVE & SEALED");
+    System.out.println("█".repeat(60) + "\n");
   }
 }
