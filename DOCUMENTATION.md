@@ -116,4 +116,49 @@ El sistema ahora soporta **Firmas Digitales de No-Repudio**.
 
 ---
 
+# Personal Data Vault: Especificación Técnica de Seguridad
+
+## 1. Modelo de Criptografía Híbrida
+
+### A. Capa Simétrica (Privacidad)
+* **KDF:** PBKDF2 with HMAC-SHA256.
+* **Fortalecimiento:** Se utiliza un **Secret Pepper** inyectado en tiempo de compilación. La fórmula de derivación es: `Key = PBKDF2(Password + Pepper, Salt)`.
+* **Cifrado:** AES-256-GCM. Proporciona confidencialidad e integridad (AEAD). Cualquier manipulación del bitstream resulta en un fallo de autenticación inmediato.
+
+### B. Capa Asimétrica (Identidad)
+* **Algoritmo:** Ed25519 (EdDSA).
+* **DID Method:** `did:key`.
+* **Uso:** Firma de mensajes y generación de Credenciales Verificables (JSON-LD ready).
+
+---
+
+## 2. Registro de Auditoría e Integridad
+El objeto `VaultData` incluye ahora un vector de auditoría (`accessLog`).
+* **Propósito:** Detección de accesos no autorizados ("Evil Maid Attack").
+* **Persistencia:** Solo se actualiza tras una validación exitosa del Tag GCM, asegurando que los logs no puedan ser inyectados externamente.
+
+---
+
+## 3. Patrones de Diseño y Arquitectura de Software
+
+Para la transición a la App Móvil, el sistema adopta los siguientes patrones:
+
+1.  **Hexagonal Architecture (Ports & Adapters):** Desacoplamiento total del motor criptográfico de la interfaz de usuario (CLI/Móvil).
+2.  **Strategy Pattern:** Para permitir el cambio dinámico entre almacenamiento local (File System) y almacenamiento seguro de hardware (Keystore).
+3.  **Singleton Scope:** El `SecurityService` garantiza que las llaves sensibles solo residan en un segmento controlado de la memoria RAM.
+
+---
+
+## 4. Estructura del Contenedor de Datos (`.vault`)
+
+| Segmento | Longitud | Descripción |
+| :--- | :--- | :--- |
+| **Header: Salt** | 16 Bytes | Sal aleatoria para KDF. |
+| **Header: IV** | 12 Bytes | Vector de inicialización para AES-GCM. |
+| **Payload** | Variable | JSON cifrado (Incluye Identidad, Secretos y Auditoría). |
+| **Tag GCM** | 16 Bytes | Firma de integridad del bloque cifrado. |
+
+---
+*Documento actualizado el 14 de Abril de 2026 para reflejar la implementación de Seguridad Proactiva, por el Ing. Jhon A. Garcia.*
+
 *Documento generado el 09 de Abril de 2026 por el Ingeniero de Sistemas Jhon A. Garcia.*
