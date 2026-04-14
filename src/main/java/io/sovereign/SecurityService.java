@@ -8,11 +8,9 @@ import javax.crypto.spec.SecretKeySpec;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.*;
-import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.Base64;
-import java.util.List;
 import java.util.stream.Collectors;
 
 public class SecurityService {
@@ -20,24 +18,18 @@ public class SecurityService {
   private static final int ITERATIONS = 600_000;
   private static final int KEY_LENGTH = 256;
   private static final String ALGORITHM = "PBKDF2WithHmacSHA256";
-
+  private static final String SECRET_PEPPER = "S0v3r31gn_P3pp3r_2026!#";
 
   /**
    * Deriva una clave AES de 256 bits a partir de una contraseña y un salt.
    */
-  public SecretKeySpec deriveKeyFromPassword(char[] password, byte[] salt)
-          throws NoSuchAlgorithmException, InvalidKeySpecException {
+  public SecretKeySpec deriveKeyFromPassword(char[] password, byte[] salt) throws Exception {
+    // Combinamos el password con el pepper
+    char[] pepperedPassword = (new String(password) + SECRET_PEPPER).toCharArray();
 
-    PBEKeySpec spec = new PBEKeySpec(password, salt, ITERATIONS, KEY_LENGTH);
-    SecretKeyFactory factory = SecretKeyFactory.getInstance(ALGORITHM);
-
-    try {
-      byte[] keyBytes = factory.generateSecret(spec).getEncoded();
-      return new SecretKeySpec(keyBytes, "AES");
-    } finally {
-      //Limpieza de datos sensibles de la memoria
-      spec.clearPassword();
-    }
+    PBEKeySpec spec = new PBEKeySpec(pepperedPassword, salt, 65536, 256);
+    SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
+    return new SecretKeySpec(factory.generateSecret(spec).getEncoded(), "AES");
   }
 
   /*

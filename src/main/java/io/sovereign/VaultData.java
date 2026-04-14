@@ -14,6 +14,7 @@ public class VaultData {
 
   public Map<String, Object> professionalProfile = new HashMap<>(); // GitHub/LinkedIn
   public List<String> cryptoWallets = new ArrayList<>(); // Direcciones de billeteras
+  public List<String> accessLog = new ArrayList<>(); // Accesos para auditoria
   public Map<String, String> attributes = new HashMap<>(); //Metadatos generales
   public Map<String, String> secrets = new HashMap<>();
 

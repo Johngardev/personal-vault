@@ -73,6 +73,18 @@ public class VaultCommand implements Runnable {
         vault.attributes.put("recovery_phrase", mnemonic);
         vault.ownerName = "Fundador y Propietario soberano.";
 
+        // Registrar el acceso actual
+        String timestamp = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        vault.accessLog.add("Acceso exitoso el: " + timestamp);
+
+        // Mantener solo los últimos 5 logs para no engrosar la bóveda
+        if (vault.accessLog.size() > 5) vault.accessLog.remove(0);
+
+        // Mostrar el último acceso para que el usuario sospeche si no fue él
+        if (vault.accessLog.size() > 1) {
+          System.out.println("ÚLTIMO ACCESO: " + vault.accessLog.get(vault.accessLog.size() - 2));
+        }
+
         //Generacion de Criptografia Asimetrica
         java.security.KeyPair pair = security.generateIdentityKeyPair();
         vault.encodedPublicKey = java.util.Base64.getEncoder().encodeToString(pair.getPublic().getEncoded());
@@ -89,6 +101,21 @@ public class VaultCommand implements Runnable {
         byte[] decrypted = security.decrypt(encryptedFile, password);
         vault = objectMapper.readValue(decrypted, VaultData.class);
         System.out.println("[LOAD] Bienvenido, " + vault.ownerName);
+
+        String timestamp = java.time.LocalDateTime.now()
+                .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        vault.accessLog.add("Acceso exitoso desde CLI: " + timestamp);
+
+        if (vault.accessLog.size() > 5) {
+          vault.accessLog.remove(0);
+        }
+
+        if (vault.accessLog.size() > 1) {
+          String lastAccess = vault.accessLog.get(vault.accessLog.size() - 2);
+          System.out.println("\n[AUDIT] Último acceso registrado: " + lastAccess);
+        }
+
+        saveVault(vault, security, password, vaultPath, objectMapper);
       }
 
       boolean needsSave = false;
