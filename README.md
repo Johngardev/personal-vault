@@ -1,73 +1,144 @@
-# Personal Vault: Bóveda de Identidad Soberana (v1.5)
+# Personal Vault
 
-**Personal Vault** s una infraestructura de identidad descentralizada (SSI) de alto rendimiento. Desarrollada originalmente como un motor CLI con **Quarkus**, está evolucionando hacia un SDK multiplataforma para el empoderamiento de la identidad digital.
-A diferencia de las plataformas tradicionales, esta bóveda utiliza criptografía de grado militar para asegurar que tú seas el único dueño de tus datos profesionales y personales.
+<p align="center">
+  <img src="https://img.shields.io/badge/Java-17%2B-ED8B00?style=for-the-badge&logo=java" alt="Java 17+" />
+  <img src="https://img.shields.io/badge/Quarkus-3.34.3-4695EB?style=for-the-badge&logo=quarkus" alt="Quarkus 3.34.3" />
+  <img src="https://img.shields.io/badge/Status-MVP-28A745?style=for-the-badge" alt="MVP" />
+  <img src="https://img.shields.io/badge/License-Repository%20Default-6C757D?style=for-the-badge" alt="License" />
+</p>
 
----
+Data Personal Vault MVP is a Java-based personal identity and data protection project designed to help users securely manage their digital identity, professional profile information, and sensitive personal data. The project combines self-sovereign identity principles, cryptographic protection, and practical data management workflows in a single application.
 
-## Características Principales
+## Overview
 
-* **Identidad Soberana (DID):** Generación de identificadores únicos basados en el estándar `did:key` con llaves Ed25519.
-* **Cifrado Bancario:** Almacenamiento local protegido con **AES-256-GCM** y derivación de llaves mediante **PBKDF2**.
-* **Resiliencia Total (BIP-39):** Sistema de recuperación basado en frases semilla de **12 palabras mnemónicas**.
-* **Conectividad de Perfil:**
-    * **GitHub:** Sincronización automática de bio y repositorios vía API REST.
-    * **LinkedIn:** Ingesta manual de extractos profesionales.
-* **Sello Digital:** Capacidad de firmar mensajes para demostrar autoría e integridad de los datos.
+Personal Vault is an MVP focused on creating a secure local digital vault for personal and professional information. It is designed around the idea that users should maintain exclusive control over their identity data, credentials, and personal records without relying on centralized platforms for trust or storage.
 
----
+The system supports key concepts such as decentralized identifiers (DIDs), local encryption, secure profile synchronization, and audit-oriented access tracking. The current implementation provides a practical foundation for future expansion into cross-platform and mobile experiences.
 
-## Instalación y Uso
+## Key capabilities
 
-### Requisitos
-* **Java 17** o superior (recomendado GraalVM o OpenJDK).
+- Decentralized identity model using DID generation based on the `did:key` approach.
+- Strong local encryption with AES-256-GCM and PBKDF2-based key derivation.
+- Seed recovery flow based on BIP-39 mnemonic phrases.
+- Profile aggregation from external sources such as GitHub and LinkedIn.
+- Digital signing support for proving authorship and integrity.
+- Audit trail for recent successful access events.
+- Local vault persistence with secure storage patterns.
 
-### Ejecución rápida (Beta)
-Si ya tienes el archivo `.jar` empaquetado, simplemente ejecuta:
-```powershell
+## Architecture
+
+The application is organized into logical facets that separate responsibilities and allow the system to evolve without coupling critical concerns together.
+
+### Core
+- DID creation and management
+- public key handling
+- mnemonic recovery support
+
+### Professional
+- GitHub profile synchronization
+- LinkedIn profile data ingestion
+- professional identity representation
+
+### Security
+- encryption metadata
+- hashing and key derivation details
+- verification and validation logic
+
+## Technology stack
+
+| Layer | Technology |
+| --- | --- |
+| Language | Java 17 |
+| Framework | Quarkus |
+| CLI support | Picocli |
+| Serialization | Jackson |
+| Encryption | AES-256-GCM, PBKDF2 |
+| Recovery model | BIP-39 mnemonic phrases |
+| Testing | JUnit |
+
+## Project structure
+
+```text
+personal-vault/
+├── .mvn/
+├── src/
+│   ├── main/
+│   │   ├── java/
+│   │   └── resources/
+│   └── test/
+├── DOCUMENTATION.md
+├── README.md
+├── pom.xml
+├── mvnw
+├── mvnw.cmd
+├── identity.vaul
+├── identidad_soberana.json
+└── .gitignore
+```
+
+## Security model
+
+The system focuses on protecting personal information through layered security principles:
+
+- local-first storage model
+- encrypted vault payloads
+- derived encryption keys from user-controlled secrets
+- deterministic identity generation
+- verification of signed data and access history
+
+This MVP is designed to demonstrate a strong privacy-oriented architecture and serves as a foundation for more advanced personal identity workflows.
+
+## Getting started
+
+### Prerequisites
+
+- Java 17 or higher
+- Maven or the included Maven wrapper
+- Git
+
+### Run in development mode
+
+```bash
+./mvnw quarkus:dev
+```
+
+### Build the application
+
+```bash
+./mvnw package
+```
+
+### Run the packaged application
+
+```bash
 java -jar target/personal-vault-1.0.0-SNAPSHOT-runner.jar --view
 ```
 
-### Iniciar en modo desarrollo (Live Coding)
-./mvnw quarkus:dev
+## Useful commands
 
-### Generar el binario portable (Uber-JAR)
-./mvnw package "-Dquarkus.package.type=uber-jar" -DskipTests
+```bash
+./mvnw test
+./mvnw package -DskipTests
+./mvnw clean package
+```
 
----
+## Roadmap
 
-## Estructura de Facetas
-La identidad se organiza en módulos independientes:
-* **Core:** DID, Claves Públicas y Mnemónico.
-* **Professional:** Repositorios, Bio de GitHub y resúmenes de LinkedIn.
-* **Security:** Metadatos de cifrado y algoritmos utilizados.
+The current implementation is positioned as an MVP and is intended to evolve toward broader capabilities, including:
 
----
+- mobile-first deployment through Kotlin Multiplatform
+- more advanced biometric and secure hardware integration
+- richer profile synchronization and validation flows
+- stronger export, backup, and recovery experiences
 
-## Innovaciones de Seguridad (Fase 6)
+## Project status
 
-* **Identidad Soberana (DID):** Generación de identificadores únicos `did:key` con curvas Ed25519 (EdDSA).
-* **Cifrado Blindado (Peppered KDF):** Implementación de un **Secret Pepper** estático que protege la bóveda contra ataques de fuerza bruta, incluso si el archivo `.vault` es comprometido.
-* **Oráculo de Verificación:** Motor integrado para validar Credenciales Verificables (VC) externas mediante firmas criptográficas de no-repudio.
-* **Registro de Auditoría (Anti-Intrusión):** Historial inmutable de los últimos 5 accesos exitosos almacenado dentro del payload cifrado.
-* **Resiliencia BIP-39:** Recuperación mediante frases mnemónicas de 12 palabras.
+This repository is a working MVP focused on the core ideas of personal digital identity, secure storage, and controlled access to personal information. It is intended as a functional foundation for subsequent iterations and a research-oriented prototype.
 
----
+## Author
 
-## Roadmap hacia la Movilidad (Kotlin Multiplatform)
+John Garcia
 
-Estamos transicionando el núcleo hacia una arquitectura de **SDK Compartido**:
-1.  **Core Shared:** Lógica criptográfica y de negocio en Kotlin puro.
-2.  **Native UI:** Interfaces reactivas en Jetpack Compose (Android) y SwiftUI (iOS).
-3.  **Hardware Binding:** Integración con Secure Enclave y Android Keystore.
+## License
 
----
-
-## Ciclo de Vida del Dato
-1. **Ingesta:** Captura de datos desde adaptadores (GitHub/LinkedIn).
-2. **Blindaje:** Derivación de llave mediante `PBKDF2 + Salt + Pepper`.
-3. **Sellado:** Cifrado autenticado con **AES-256-GCM**.
-4. **Auditoría:** Estampado de tiempo del acceso actual.
-5. **Persistencia:** Almacenamiento atómico en `identity.vault`.
-
----
+Please review the repository for the specific licensing terms applied to this project.
